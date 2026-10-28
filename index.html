@@ -1,0 +1,1471 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>勤務時間アプリ</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --surface-2: #eef0f3;
+    --text: #1b2330;
+    --text-sub: #5d6775;
+    --border: #dde1e7;
+    --accent: #2459d6;
+    --accent-hover: #1d4bb8;
+    --accent-text: #ffffff;
+    --accent-soft: #e5ecfb;
+    --out: #1b2330;
+    --out-text: #ffffff;
+    --ok: #157a3c;
+    --ok-soft: #e2f3e8;
+    --warn: #9a5a00;
+    --warn-soft: #fcf0dc;
+    --danger: #c0302b;
+    --danger-soft: #fbe6e5;
+    --sat: #2459d6;
+    --sun: #c0302b;
+    --today: #fff7d6;
+    --leave: #0e7c6b;
+    --leave-soft: #dcf2ee;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 2px 6px rgba(16, 24, 40, .06);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151a;
+      --surface: #1b1f26;
+      --surface-2: #252a33;
+      --text: #e8ebf0;
+      --text-sub: #a0a8b4;
+      --border: #313844;
+      --accent: #5b8cff;
+      --accent-hover: #7aa2ff;
+      --accent-text: #0b1220;
+      --accent-soft: #1e2a45;
+      --out: #e8ebf0;
+      --out-text: #12151a;
+      --ok: #5fcf8a;
+      --ok-soft: #173326;
+      --warn: #f0b45a;
+      --warn-soft: #3a2b12;
+      --danger: #ff7a73;
+      --danger-soft: #3d1c1b;
+      --sat: #7aa2ff;
+      --sun: #ff7a73;
+      --today: #2e2a17;
+      --leave: #5fd1bf;
+      --leave-soft: #133a34;
+      --shadow: none;
+      color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 16px 16px 96px; }
+
+  header { margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: .02em; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .card h2 { font-size: 16px; margin: 0 0 12px; }
+  .sub { color: var(--text-sub); font-size: 14px; }
+
+  /* 打刻 */
+  .clock { text-align: center; }
+  .clock .date { color: var(--text-sub); font-size: 15px; }
+  .clock .today-hol { color: var(--sun); font-weight: 700; margin-left: .5em; }
+  .clock .today-hol:empty { display: none; }
+  .clock .time { font-size: clamp(44px, 13vw, 68px); font-weight: 700; line-height: 1.15; margin: 4px 0 12px; letter-spacing: .02em; }
+  .badge { display: inline-block; padding: 4px 14px; border-radius: 999px; font-size: 14px; font-weight: 700; background: var(--surface-2); color: var(--text-sub); }
+  .badge.working { background: var(--ok-soft); color: var(--ok); }
+  .badge.break { background: var(--warn-soft); color: var(--warn); }
+  .badge.done { background: var(--accent-soft); color: var(--accent); }
+  .badge.leave { background: var(--leave-soft); color: var(--leave); }
+
+  .punch { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+  .punch button {
+    min-height: 64px; font: inherit; font-size: 18px; font-weight: 700; border-radius: 14px; cursor: pointer;
+    border: 2px solid var(--border); background: var(--surface); color: var(--text);
+  }
+  .punch .in { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  .punch .out { background: var(--out); border-color: var(--out); color: var(--out-text); }
+  .punch button:disabled { opacity: .35; cursor: not-allowed; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; } /* 上の段：ここまでの実績、下の段：これから */
+  .stat { background: var(--surface-2); border-radius: 12px; padding: 10px; }
+  .stat .label { font-size: 13px; color: var(--text-sub); }
+  .stat .value { font-size: 22px; font-weight: 700; line-height: 1.3; }
+  .stat .note { font-size: 12px; color: var(--text-sub); line-height: 1.4; margin-top: 2px; white-space: pre-line; }
+  .stat .note .nowrap { white-space: nowrap; }
+  .stat.em { background: var(--accent-soft); }
+  .stat.em .value { color: var(--accent); }
+  @media (max-width: 560px) {
+    .stats { grid-template-columns: 1fr 1fr; }
+    .card { padding: 16px; }
+    .table-wrap { margin: 0 -16px; padding: 0 16px; }
+  }
+
+  .notice { border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; font-size: 14px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .notice.warn { background: var(--warn-soft); color: var(--warn); }
+  .notice.info { background: var(--accent-soft); color: var(--accent); }
+  .notice button { flex-shrink: 0; }
+
+  .row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .row-head h2 { margin: 0; }
+
+  /* ボタン共通 */
+  .btn {
+    font: inherit; font-size: 15px; font-weight: 600; padding: 8px 14px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  .btn.primary:hover { background: var(--accent-hover); }
+  .btn.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+  .btn.danger:hover { background: var(--danger-soft); }
+  .btn.link { border: 0; background: transparent; color: var(--accent); padding: 4px 6px; }
+  .btn.icon { width: 40px; padding: 8px 0; }
+  button:focus-visible, input:focus-visible, tr:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  /* 月の記録 */
+  .month-nav { display: flex; align-items: center; gap: 8px; }
+  .month-nav .label { font-size: 18px; font-weight: 700; min-width: 6.5em; text-align: center; line-height: 1.3; }
+  .month-nav .label small { display: block; font-size: 12px; font-weight: 600; color: var(--text-sub); }
+  /* 「土日を表示しない」のチェック（ボタンと同じ高さにそろえる） */
+  .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; padding: 8px 4px; cursor: pointer; }
+  .toggle input { width: 18px; height: 18px; margin: 0; cursor: pointer; }
+  .table-wrap { overflow-x: auto; margin: 0 -20px; padding: 0 20px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { font-size: 12px; color: var(--text-sub); font-weight: 600; text-align: right; padding: 6px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { text-align: right; padding: 8px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--surface-2); }
+  tr.today td { background: var(--today); }
+  tr.sat .d-dow { color: var(--sat); }
+  tr.sun .d-dow, tr.hol .d-dow { color: var(--sun); }
+  .hol-name { display: block; font-size: 12px; font-weight: 600; line-height: 1.3; color: var(--sun); }
+  tr.empty td:not(:first-child) { color: var(--text-sub); }
+  td.worked { font-weight: 700; }
+  td.c-memo, th.c-memo { text-align: left; white-space: normal; max-width: 180px; color: var(--text-sub); }
+  .memo-dot { display: none; color: var(--accent); font-size: 10px; margin-left: 2px; vertical-align: 2px; }
+  .live { color: var(--ok); font-weight: 700; }
+  .leave-tag { display: inline-block; padding: 1px 12px; border-radius: 999px; background: var(--leave-soft); color: var(--leave); font-weight: 700; font-size: 13px; }
+  .leave-tag.off { background: var(--surface-2); color: var(--text-sub); } /* 全休は有給と色を分ける */
+  td.leave-cell { text-align: center; }
+  /* 日付の横の「－／有給／半日」のプルダウン */
+  .d-line { display: flex; align-items: center; gap: 8px; }
+  .d-text { min-width: 5.4em; }
+  .day-kind {
+    width: auto; max-width: none;
+    font: inherit; font-size: 12px; padding: 2px 4px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-sub);
+  }
+  .day-kind.on { background: var(--leave-soft); color: var(--leave); border-color: var(--leave); font-weight: 700; }
+  @media (max-width: 640px) {
+    th.c-memo, td.c-memo { display: none; }
+    .memo-dot { display: inline; }
+    /* 狭い画面では、プルダウンを日付の下に置く */
+    .d-line { flex-direction: column; align-items: flex-start; gap: 2px; }
+    .d-text { min-width: 0; }
+    table { font-size: 13.5px; }
+    th, td { padding-left: 4px; padding-right: 4px; }
+  }
+
+  /* 入力欄 */
+  .field { display: grid; gap: 4px; margin-bottom: 16px; }
+  .field label { font-weight: 600; font-size: 15px; }
+  .field .hint { font-size: 13px; color: var(--text-sub); }
+  input[type="number"], input[type="text"], input[type="date"], input[type="time"], select {
+    font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text); width: 100%; max-width: 280px;
+  }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  /* 編集ダイアログ */
+  dialog {
+    border: 1px solid var(--border); border-radius: 16px; padding: 0; width: min(440px, calc(100vw - 32px));
+    background: var(--surface); color: var(--text);
+  }
+  dialog::backdrop { background: rgba(10, 14, 20, .45); }
+  dialog:focus-visible { outline: none; }
+  dialog form { padding: 20px; }
+  dialog h2 { margin: 0 0 16px; font-size: 18px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid2 input { max-width: none; }
+  dialog input { max-width: none; }
+  .preview { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; font-size: 15px; margin-bottom: 12px; }
+  .error { color: var(--danger); font-size: 14px; min-height: 1.4em; margin-bottom: 8px; }
+  .dialog-actions { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .dialog-actions .right { display: flex; gap: 8px; margin-left: auto; }
+  /* 勤務／有給の切り替え */
+  .kind { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 12px; margin-bottom: 16px; }
+  .kind label { position: relative; cursor: pointer; }
+  .kind input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+  .kind span { display: block; text-align: center; padding: 8px 4px; border-radius: 9px; font-weight: 600; color: var(--text-sub); }
+  .kind input:checked + span { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+  .kind input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; }
+  #f-leave-note { background: var(--leave-soft); color: var(--leave); }
+
+  /* ジョブカンの CSV 読み込み */
+  #importer { width: min(560px, calc(100vw - 32px)); }
+  #importer select { max-width: none; }
+  #imp-summary { white-space: pre-line; }
+  .check { display: flex; gap: 8px; align-items: flex-start; font-size: 15px; margin-bottom: 12px; cursor: pointer; }
+  .check input { width: 18px; height: 18px; margin-top: 3px; flex-shrink: 0; }
+  .imp-table { max-height: 40vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px; }
+  .imp-table th { position: sticky; top: 0; background: var(--surface); }
+  .imp-table th, .imp-table td { padding-left: 8px; padding-right: 8px; }
+  .imp-table tr.overlap td { background: var(--warn-soft); }
+  .imp-table tbody tr { cursor: default; }
+
+  /* お知らせ（トースト） */
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+    background: var(--out); color: var(--out-text); padding: 12px 16px; border-radius: 12px;
+    display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px);
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 10; font-size: 15px;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  .toast button { font: inherit; font-weight: 700; background: transparent; border: 1px solid currentColor; color: inherit; border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>勤務時間アプリ</h1>
+  </header>
+
+  <main>
+    <!-- ジョブカンから読み込む -->
+    <section class="card" aria-labelledby="jobcan-title">
+      <h2 id="jobcan-title">ジョブカンから読み込む</h2>
+      <p class="sub" style="margin-top:0">
+        ジョブカンでダウンロードした出勤簿のCSVファイルを選ぶと、出勤・退勤・休憩の時刻をこのアプリに取り込みます。取り込む前に内容を確認できます。
+      </p>
+      <div class="actions" style="margin-bottom:8px">
+        <button class="btn primary" id="jobcan-load">ジョブカンのCSVを読み込む</button>
+        <input type="file" id="jobcan-file" accept=".csv,.txt,text/csv" hidden>
+      </div>
+      <p class="sub" id="auto-break-info" style="margin:0"></p>
+    </section>
+
+    <div id="forgot-notice" class="notice warn" hidden>
+      <span id="forgot-text"></span>
+      <button class="btn" id="forgot-fix">記録を直す</button>
+    </div>
+    <div id="backup-notice" class="notice info" hidden>
+      <span>しばらくバックアップしていません。データはこのブラウザーの中だけにあるので、ときどき保存しておくと安心です。</span>
+      <button class="btn" id="backup-now">バックアップを保存</button>
+    </div>
+
+    <!-- 打刻 -->
+    <section class="card clock" aria-label="打刻">
+      <div class="date"><span id="now-date"></span><span class="today-hol" id="now-hol"></span></div>
+      <div class="time num" id="now-time">--:--:--</div>
+      <span class="badge" id="status">勤務前</span>
+      <div class="punch">
+        <button class="in" id="btn-in">出勤</button>
+        <button class="out" id="btn-out">退勤</button>
+      </div>
+    </section>
+
+    <!-- 月の記録 -->
+    <section class="card" aria-labelledby="month-title">
+      <div class="row-head">
+        <h2 id="month-title">月の記録</h2>
+        <div class="actions">
+          <button class="btn" id="add-record">＋ 記録を追加</button>
+          <button class="btn" id="add-leave">＋ 有給を入れる</button>
+          <button class="btn" id="csv-month">この月をCSVで保存</button>
+          <label class="toggle"><input type="checkbox" id="hide-weekend">土日を表示しない</label>
+        </div>
+      </div>
+      <div class="row-head">
+        <div class="month-nav">
+          <button class="btn icon" id="prev-month" aria-label="前の月">‹</button>
+          <span class="label num" id="month-label"><small id="month-year"></small><span id="month-range"></span></span>
+          <button class="btn icon" id="next-month" aria-label="次の月">›</button>
+        </div>
+        <button class="btn" id="this-month">今月</button>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="label">出勤日数</div><div class="value num" id="m-days">0日</div><div class="note" id="m-days-note"></div></div>
+        <div class="stat"><div class="label">総実働</div><div class="value num" id="m-worked">0:00</div></div>
+        <div class="stat"><div class="label">必要な時間</div><div class="value num" id="m-required">0:00</div><div class="note" id="m-required-note"></div></div>
+        <div class="stat em"><div class="label">あと働く時間</div><div class="value num" id="m-left">0:00</div><div class="note" id="m-left-note"></div></div>
+        <div class="stat em"><div class="label">残りの出勤日数</div><div class="value num" id="m-remain">0日</div><div class="note" id="m-remain-note"></div></div>
+        <div class="stat em"><div class="label">1日あたり</div><div class="value num" id="m-perday">0:00</div><div class="note" id="m-perday-note"></div></div>
+      </div>
+      <p class="sub" style="margin:16px 0 8px">行を押すと、その日の記録を追加・修正できます。日付の横の「－」を押すと、有給・全休・半日を選べます。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>日付</th><th>出勤</th><th>退勤</th><th>休憩</th><th>実働</th><th class="c-memo">メモ</th></tr>
+          </thead>
+          <tbody id="month-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- データの管理 -->
+    <section class="card" aria-labelledby="data-title">
+      <h2 id="data-title">データの管理</h2>
+      <p class="sub" style="margin-top:0">
+        記録は<strong>このパソコンの、このブラウザーの中だけ</strong>に保存されています。別のブラウザーやスマホとは共有されません。
+        ブラウザーの閲覧履歴を削除すると消えることがあるので、ときどき「バックアップを保存」してください。
+      </p>
+      <div class="actions" style="margin-bottom:12px">
+        <button class="btn primary" id="backup-save">バックアップを保存</button>
+        <button class="btn" id="backup-load">バックアップから復元</button>
+        <button class="btn" id="csv-all">すべての記録をCSVで保存</button>
+        <input type="file" id="backup-file" accept=".json,application/json" hidden>
+      </div>
+      <p class="sub" id="last-backup" style="margin:0 0 16px"></p>
+      <button class="btn danger" id="clear-all">すべての勤務記録を削除</button>
+    </section>
+  </main>
+</div>
+
+<!-- 記録の編集ダイアログ -->
+<dialog id="editor" aria-labelledby="editor-title">
+  <form id="editor-form" novalidate>
+    <h2 id="editor-title">記録の編集</h2>
+    <div class="kind" role="radiogroup" aria-label="記録の種類">
+      <label><input type="radio" name="f-kind" id="f-kind-work" value="work" checked><span>勤務</span></label>
+      <label><input type="radio" name="f-kind" id="f-kind-leave" value="leave"><span>有給</span></label>
+      <label><input type="radio" name="f-kind" id="f-kind-off" value="off"><span>全休</span></label>
+    </div>
+    <div class="field">
+      <label for="f-date">日付</label>
+      <input type="date" id="f-date" required>
+    </div>
+    <p class="preview" id="f-leave-note" hidden>この日を有給（1日休み）として記録します。平日の有給は、その月に必要な時間から1日分（8時間）減ります。</p>
+    <div id="f-work-fields">
+    <div class="grid2">
+      <div class="field">
+        <label for="f-start">出勤</label>
+        <input type="time" id="f-start" required>
+      </div>
+      <div class="field">
+        <label for="f-end">退勤</label>
+        <input type="time" id="f-end">
+      </div>
+    </div>
+    <div class="field">
+      <label for="f-break">休憩（分）</label>
+      <input type="number" id="f-break" min="0" step="5" inputmode="numeric">
+      <span class="hint">退勤が出勤より前の時刻なら、翌日に退勤したものとして計算します。退勤を空にすると「勤務中」になります。</span>
+    </div>
+    <label class="check">
+      <input type="checkbox" id="f-half">
+      <span>半日有給の日（その月に必要な時間が4時間減ります。時刻を空のまま保存すると、半日有給の予定になります）</span>
+    </label>
+    </div>
+    <div class="field">
+      <label for="f-memo">メモ</label>
+      <input type="text" id="f-memo" maxlength="100" placeholder="現場名・作業内容など">
+    </div>
+    <div class="preview num" id="f-preview"></div>
+    <div class="error" id="f-error" role="alert"></div>
+    <div class="dialog-actions">
+      <button type="button" class="btn danger" id="f-delete">削除</button>
+      <div class="right">
+        <button type="button" class="btn" id="f-cancel">キャンセル</button>
+        <button type="submit" class="btn primary">保存</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- ジョブカンの CSV 読み込みの確認ダイアログ -->
+<dialog id="importer" aria-labelledby="importer-title">
+  <form id="importer-form" novalidate>
+    <h2 id="importer-title">ジョブカンのCSVを読み込む</h2>
+    <p class="sub" id="imp-file" style="margin:-8px 0 12px"></p>
+    <div class="field" id="imp-name-field" hidden>
+      <label for="imp-name">読み込む人</label>
+      <select id="imp-name"></select>
+    </div>
+    <div class="preview" id="imp-summary"></div>
+    <label class="check" id="imp-overwrite-field" hidden>
+      <input type="checkbox" id="imp-overwrite" checked>
+      <span>すでにアプリに記録がある日は、ジョブカンの内容で上書きする</span>
+    </label>
+    <div class="imp-table" id="imp-table">
+      <table>
+        <thead><tr><th>日付</th><th>出勤</th><th>退勤</th><th>休憩</th><th>実働</th></tr></thead>
+        <tbody id="imp-body"></tbody>
+      </table>
+    </div>
+    <p class="sub" id="imp-cols" style="margin:0 0 8px"></p>
+    <div class="error" id="imp-error" role="alert"></div>
+    <div class="dialog-actions">
+      <div class="right">
+        <button type="button" class="btn" id="imp-cancel">キャンセル</button>
+        <button type="submit" class="btn primary" id="imp-ok">読み込む</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <span id="toast-text"></span>
+  <button id="toast-undo" hidden>取り消す</button>
+</div>
+
+<script>
+'use strict';
+
+const STORAGE_KEY = 'kinmu-app-v1';
+const WEEK = ['日', '月', '火', '水', '木', '金', '土'];
+const AUTO_BREAK_MIN = 60;     // 出勤したときに自動で入れる休憩（分）。ジョブカンを読み込んだあとは、その休憩時間を使う
+const HOURS_PER_DAY = 8;       // 平日1日に働く時間（その月に必要な時間の計算に使う）
+const PERIOD_START_DAY = 11;   // 1か月の区切りが始まる日（11日〜翌月10日を1か月として数える）
+const FORGOT_HOURS = 16;       // これ以上勤務中が続いたら退勤忘れの注意を出す
+const BACKUP_REMIND_DAYS = 30; // これ以上バックアップしていなければ案内を出す
+
+const $ = id => document.getElementById(id);
+
+// ---------- 日付・時刻の道具 ----------
+const pad = n => String(n).padStart(2, '0');
+const dateKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const monthKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+// from から to までの分数。to が from より前なら翌日とみなす
+const diffMin = (from, to) => { const d = toMin(to) - toMin(from); return d < 0 ? d + 1440 : d; };
+const parseKey = key => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d); };
+// 1か月の区切りは「その期間が始まる月」('YYYY-MM') で表す。例：'2026-10' は 10/11〜11/10
+const periodOf = d => monthKey(new Date(d.getFullYear(), d.getMonth() - (d.getDate() < PERIOD_START_DAY ? 1 : 0), 1));
+function periodDays(period) {
+  const [y, m] = period.split('-').map(Number);
+  const end = new Date(y, m, PERIOD_START_DAY);
+  const days = [];
+  for (const d = new Date(y, m - 1, PERIOD_START_DAY); d < end; d.setDate(d.getDate() + 1)) days.push(dateKey(d));
+  return days;
+}
+const fmtDate = key => { const d = parseKey(key); return `${d.getMonth() + 1}/${d.getDate()}(${WEEK[d.getDay()]})`; };
+const fmtDur = min => {
+  const sign = min < 0 ? '-' : '';
+  const m = Math.abs(Math.round(min));
+  return `${sign}${Math.floor(m / 60)}:${pad(m % 60)}`;
+};
+// 休憩の長さを「1時間」「45分」「1時間30分」のように
+const fmtBreak = min => {
+  const h = Math.floor(min / 60), m = min % 60;
+  return h && m ? `${h}時間${m}分` : h ? `${h}時間` : `${m}分`;
+};
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const isTime = t => typeof t === 'string' && /^\d{2}:\d{2}$/.test(t);
+
+// ---------- 祝日 ----------
+// 2022年以降の祝日法に沿って、その年の祝日を { 'YYYY-MM-DD': '祝日名' } の形で返す
+const holidayCache = {};
+function holidaysOf(year) {
+  if (holidayCache[year]) return holidayCache[year];
+  const h = {};
+  const keyOf = (m, d) => dateKey(new Date(year, m - 1, d));
+  const add = (m, d, name) => { h[keyOf(m, d)] = name; };
+  // その月の第n月曜日の日にち
+  const nthMonday = (m, n) => 1 + (8 - new Date(year, m - 1, 1).getDay()) % 7 + (n - 1) * 7;
+  // 春分・秋分の日の計算式（1980〜2099年で有効）
+  const t = year - 1980;
+  const shunbun = Math.floor(20.8431 + 0.242194 * t - Math.floor(t / 4));
+  const shubun = Math.floor(23.2488 + 0.242194 * t - Math.floor(t / 4));
+
+  add(1, 1, '元日');
+  add(1, nthMonday(1, 2), '成人の日');
+  add(2, 11, '建国記念の日');
+  add(2, 23, '天皇誕生日');
+  add(3, shunbun, '春分の日');
+  add(4, 29, '昭和の日');
+  add(5, 3, '憲法記念日');
+  add(5, 4, 'みどりの日');
+  add(5, 5, 'こどもの日');
+  add(7, nthMonday(7, 3), '海の日');
+  add(8, 11, '山の日');
+  add(9, nthMonday(9, 3), '敬老の日');
+  add(9, shubun, '秋分の日');
+  add(10, nthMonday(10, 2), 'スポーツの日');
+  add(11, 3, '文化の日');
+  add(11, 23, '勤労感謝の日');
+
+  const shift = (key, days) => { const d = parseKey(key); d.setDate(d.getDate() + days); return dateKey(d); };
+  const base = Object.keys(h);
+  // 国民の休日：前の日と次の日が両方とも祝日である日
+  for (const key of base) {
+    const mid = shift(key, 1);
+    if (!h[mid] && base.includes(shift(key, 2))) h[mid] = '国民の休日';
+  }
+  // 振替休日：祝日が日曜日なら、そのあとの最初の祝日でない日
+  for (const key of base) {
+    if (parseKey(key).getDay() !== 0) continue;
+    let next = shift(key, 1);
+    while (h[next]) next = shift(next, 1);
+    h[next] = '振替休日';
+  }
+  return (holidayCache[year] = h);
+}
+const holidayName = key => holidaysOf(Number(key.slice(0, 4)))[key] || '';
+
+// ---------- 保存と読み込み ----------
+function normalize(d) {
+  const records = {};
+  const src = d && typeof d.records === 'object' && d.records ? d.records : {};
+  for (const [key, r] of Object.entries(src)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || !r) continue;
+    const memo = typeof r.memo === 'string' ? r.memo : '';
+    if (r.leave === true) {
+      records[key] = { leave: true, memo };
+      continue;
+    }
+    if (r.dayOff === true) {
+      records[key] = { dayOff: true, memo };
+      continue;
+    }
+    const half = r.halfLeave === true;
+    if (!isTime(r.start)) {
+      // 時刻のない半日有給（まだ出勤していない予定）
+      if (half) records[key] = { halfLeave: true, memo };
+      continue;
+    }
+    records[key] = {
+      start: r.start,
+      end: isTime(r.end) ? r.end : null,
+      breakMin: Math.max(0, parseInt(r.breakMin, 10) || 0),
+      breakStart: isTime(r.breakStart) ? r.breakStart : null,
+      memo,
+    };
+    if (half) records[key].halfLeave = true;
+  }
+  // 以前の版で保存していた settings（時給などの設定）は読み捨てる
+  return {
+    version: 1,
+    records,
+    lastBackup: d && typeof d.lastBackup === 'string' ? d.lastBackup : null,
+    autoBreakMin: Number.isInteger(d && d.autoBreakMin) && d.autoBreakMin >= 0 && d.autoBreakMin <= 480 ? d.autoBreakMin : null,
+    hideWeekend: !!(d && d.hideWeekend === true), // 月の記録の表で土日を隠すかどうか
+  };
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return normalize(JSON.parse(raw));
+  } catch (e) {
+    console.warn('読み込みに失敗しました', e);
+  }
+  return normalize({});
+}
+
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e) {
+    toast('保存できませんでした。ブラウザーの設定を確認してください');
+  }
+}
+
+let data = load();
+let viewMonth = periodOf(new Date()); // 表示中の1か月（その期間が始まる月）
+let editingKey = null;
+let lastRenderedDay = dateKey(new Date());
+
+// ---------- 計算 ----------
+function workedMin(r) {
+  if (!r || !r.start || !r.end) return null;
+  return diffMin(r.start, r.end) - (r.breakMin || 0);
+}
+// 出勤したときに自動で入れる休憩（ジョブカンを読み込んでいれば、その休憩時間）
+const autoBreak = () => data.autoBreakMin ?? AUTO_BREAK_MIN;
+// 休みの種類の名前
+const REST_NAMES = { leave: '有給', off: '全休', half: '半日有給' };
+// その日の休みの種類：'leave'（有給）／'off'（全休＝有給ではない1日休み）／'half'（半日有給）／''（なし）
+const dayKind = r => (!r ? '' : r.leave ? 'leave' : r.dayOff ? 'off' : r.halfLeave ? 'half' : '');
+// 働く日（土日・祝日でない平日）かどうか
+function isWorkday(key) {
+  const dow = parseKey(key).getDay();
+  return dow !== 0 && dow !== 6 && !holidayName(key);
+}
+// その1か月に必要な時間と、あとどのくらい働けばよいか（時間はすべて分）
+// 平日の有給・全休は働かなくてよい日なので、必要な時間と残りの平日から除く。半日有給は半日分（4時間）だけ減らす
+function monthPlan(period, todayKey) {
+  let workdays = 0, leaveWorkdays = 0, offWorkdays = 0, halfWorkdays = 0;
+  let leaveDays = 0, offDays = 0, halfDays = 0;
+  let remainDays = 0, todayRemains = false, workedDays = 0, worked = 0;
+  for (const key of periodDays(period)) {
+    const r = data.records[key];
+    const w = workedMin(r);
+    if (w !== null) { workedDays++; worked += w; }
+    if (r && r.leave) leaveDays++;
+    if (r && r.dayOff) offDays++;
+    if (r && r.halfLeave) halfDays++;
+    if (!isWorkday(key)) continue;
+    if (r && r.leave) { leaveWorkdays++; continue; }
+    if (r && r.dayOff) { offWorkdays++; continue; }
+    if (r && r.halfLeave) halfWorkdays++;
+    workdays++;
+    // 残りの平日：今日より後の平日と、まだ退勤していない今日
+    if (key > todayKey || (key === todayKey && !(r && r.end))) {
+      remainDays++;
+      if (key === todayKey) todayRemains = true;
+    }
+  }
+  const required = (workdays - halfWorkdays / 2) * HOURS_PER_DAY * 60;
+  return {
+    workdays, leaveWorkdays, offWorkdays, halfWorkdays, leaveDays, offDays, halfDays,
+    remainDays, todayRemains, workedDays, worked, required, left: required - worked,
+  };
+}
+// 勤務中の記録（出勤して、まだ退勤していない記録）の日付。なければ null
+function openKey() {
+  const keys = Object.keys(data.records).filter(k => data.records[k].start && !data.records[k].end).sort();
+  return keys.length ? keys[keys.length - 1] : null;
+}
+function startDate(key, r) {
+  const d = parseKey(key);
+  const [h, m] = r.start.split(':').map(Number);
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
+// ---------- お知らせ（トースト） ----------
+let toastTimer = null;
+let undoSnapshot = null;
+function toast(text, undoable = false) {
+  $('toast-text').textContent = text;
+  $('toast-undo').hidden = !undoable;
+  if (!undoable) undoSnapshot = null;
+  $('toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $('toast').classList.remove('show'); undoSnapshot = null; }, undoable ? 6000 : 3000);
+}
+// 変更前の状態を覚えておき、「取り消す」で戻せるようにする
+const snapshot = () => { undoSnapshot = JSON.stringify({ records: data.records, autoBreakMin: data.autoBreakMin }); };
+$('toast-undo').addEventListener('click', () => {
+  if (!undoSnapshot) return;
+  ({ records: data.records, autoBreakMin: data.autoBreakMin } = JSON.parse(undoSnapshot));
+  undoSnapshot = null;
+  save();
+  renderAll();
+  toast('元に戻しました');
+});
+
+// ---------- 打刻 ----------
+$('btn-in').addEventListener('click', () => {
+  const now = new Date();
+  const key = dateKey(now);
+  if (openKey()) return;
+  const r = data.records[key];
+  if (r && r.start) { toast('今日はすでに記録があります。直すときは月の記録の表から'); return; }
+  // 有給の日に出勤したときは、有給をやめて勤務の記録にする
+  const restName = r && r.leave ? '有給' : r && r.dayOff ? '全休' : '';
+  if (restName && !confirm(`今日は${restName}になっています。${restName}をやめて出勤しますか？`)) return;
+  snapshot();
+  // 半日有給の日は勤務が短いので、休憩は自動で入れない
+  const half = !!(r && r.halfLeave);
+  const brk = half ? 0 : autoBreak();
+  data.records[key] = { start: hhmm(now), end: null, breakMin: brk, breakStart: null, memo: r ? r.memo : '' };
+  if (half) data.records[key].halfLeave = true;
+  save();
+  renderAll();
+  const note = half ? '半日有給の日なので休憩は入れていません' : brk ? `休憩${fmtBreak(brk)}を自動で入れました` : '休憩は入れていません';
+  toast(`${hhmm(now)} 出勤しました（${note}）`, true);
+});
+
+$('btn-out').addEventListener('click', () => {
+  const key = openKey();
+  if (!key) return;
+  snapshot();
+  const r = data.records[key];
+  const now = hhmm(new Date());
+  // 以前の版の休憩ボタンで「休憩中」のまま残っている記録は、休憩を終えてから退勤する
+  if (r.breakStart) {
+    r.breakMin += diffMin(r.breakStart, now);
+    r.breakStart = null;
+  }
+  r.end = now;
+  // 勤務が休憩より短かったときは、実働がマイナスにならないよう休憩を勤務時間までに減らす
+  r.breakMin = Math.min(r.breakMin, diffMin(r.start, r.end));
+  save();
+  renderAll();
+  toast(`${now} 退勤しました。おつかれさまでした`, true);
+});
+
+// ---------- 打刻の表示 ----------
+function renderClock() {
+  const now = new Date();
+  $('now-date').textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日（${WEEK[now.getDay()]}）`;
+  $('now-hol').textContent = holidayName(dateKey(now));
+  $('now-time').textContent = `${hhmm(now)}:${pad(now.getSeconds())}`;
+}
+
+function renderPunch() {
+  const now = new Date();
+  const today = dateKey(now);
+  const open = openKey();
+  const key = open || today;
+  const r = data.records[key];
+  const status = $('status');
+
+  let label = '勤務前', cls = '';
+  if (open && r.breakStart) { label = '休憩中'; cls = 'break'; }
+  else if (open) { label = '勤務中'; cls = 'working'; }
+  else if (r && r.leave) { label = '有給'; cls = 'leave'; }
+  else if (r && r.dayOff) { label = '全休'; }
+  else if (r && r.start) { label = '退勤済み'; cls = 'done'; }
+  else if (r && r.halfLeave) { label = '半日有給'; cls = 'leave'; }
+  status.textContent = label;
+  status.className = `badge ${cls}`;
+
+  // 有給・半日有給の日も出勤ボタンは押せる（有給なら、押すと有給をやめるか確かめる）
+  $('btn-in').disabled = !!open || !!(r && r.start);
+  $('btn-out').disabled = !open;
+
+  // 退勤の押し忘れ
+  const forgot = open && (now - startDate(open, r)) / 3600000 >= FORGOT_HOURS;
+  $('forgot-notice').hidden = !forgot;
+  if (forgot) $('forgot-text').textContent = `${fmtDate(open)} ${r.start} から勤務中のままです。退勤の打刻を忘れていませんか？`;
+
+  // バックアップの案内
+  const count = Object.keys(data.records).length;
+  const daysSince = data.lastBackup ? (now - parseKey(data.lastBackup)) / 86400000 : Infinity;
+  $('backup-notice').hidden = !(count >= 5 && daysSince >= BACKUP_REMIND_DAYS);
+
+  renderClock();
+}
+
+// ---------- 月の記録の表示 ----------
+function renderMonth() {
+  const days = periodDays(viewMonth);
+  const first = parseKey(days[0]);
+  const last = parseKey(days[days.length - 1]);
+  $('month-year').textContent = first.getFullYear() === last.getFullYear()
+    ? `${first.getFullYear()}年` : `${first.getFullYear()}〜${last.getFullYear()}年`;
+  $('month-range').textContent = `${first.getMonth() + 1}/${first.getDate()}〜${last.getMonth() + 1}/${last.getDate()}`;
+  const today = dateKey(new Date());
+  const rows = [];
+  $('hide-weekend').checked = data.hideWeekend;
+
+  for (const key of days) {
+    const date = parseKey(key);
+    const dow = date.getDay();
+    // 「土日を表示しない」のときは土日の行を出さない（まとめの計算には土日の勤務も入る）
+    if (data.hideWeekend && (dow === 0 || dow === 6)) continue;
+    const r = data.records[key];
+    const hol = holidayName(key);
+    const classes = [];
+    if (dow === 6) classes.push('sat');
+    if (dow === 0) classes.push('sun');
+    if (hol) classes.push('hol');
+    if (key === today) classes.push('today');
+    if (!r) classes.push('empty');
+
+    let cells = '<td></td><td></td><td></td><td></td>';
+    if (r && r.leave) {
+      cells = '<td colspan="4" class="leave-cell"><span class="leave-tag">有給</span></td>';
+    } else if (r && r.dayOff) {
+      cells = '<td colspan="4" class="leave-cell"><span class="leave-tag off">全休</span></td>';
+    } else if (r && !r.start) {
+      cells = '<td colspan="4" class="leave-cell"><span class="leave-tag">半日有給</span></td>';
+    } else if (r) {
+      const w = workedMin(r);
+      if (w !== null) {
+        cells = `<td>${r.start}</td><td>${r.end}</td><td>${fmtDur(r.breakMin)}</td><td class="worked">${fmtDur(w)}</td>`;
+      } else {
+        cells = `<td>${r.start}</td><td class="live">勤務中</td><td>${fmtDur(r.breakMin)}</td><td></td>`;
+      }
+    }
+    const memo = r && r.memo ? esc(r.memo) : '';
+    // 日付の横のプルダウン（－／有給／全休／半日）
+    const kind = dayKind(r);
+    const option = (value, label) => `<option value="${value}"${kind === value ? ' selected' : ''}>${label}</option>`;
+    const kindSelect = `<select class="day-kind${kind ? ' on' : ''}" data-key="${key}" aria-label="${fmtDate(key)} の休み" title="有給・全休・半日を選ぶ">` +
+      option('', '－') + option('leave', '有給') + option('off', '全休') + option('half', '半日') + '</select>';
+    rows.push(
+      `<tr class="${classes.join(' ')}" data-key="${key}" tabindex="0">` +
+      `<td><div class="d-line"><span class="d-text">${date.getMonth() + 1}/${date.getDate()}<span class="d-dow">(${WEEK[dow]})</span>${memo ? '<span class="memo-dot" aria-label="メモあり">●</span>' : ''}</span>${kindSelect}</div>` +
+      `${hol ? `<span class="hol-name">${hol}</span>` : ''}</td>` +
+      cells +
+      `<td class="c-memo">${memo}</td></tr>`
+    );
+  }
+  $('month-body').innerHTML = rows.join('');
+
+  const plan = monthPlan(viewMonth, today);
+  $('m-days').textContent = `${plan.workedDays}日`;
+  // 「有給 1日」などのまとまりの途中で折り返さないよう、1つずつ nowrap にする
+  $('m-days-note').innerHTML = [
+    plan.leaveDays && `有給 ${plan.leaveDays}日`,
+    plan.offDays && `全休 ${plan.offDays}日`,
+    plan.halfDays && `半日 ${plan.halfDays}回`,
+  ].filter(Boolean).map(t => `<span class="nowrap">${t}</span>`).join('・');
+  $('m-worked').textContent = fmtDur(plan.worked);
+  $('m-required').textContent = fmtDur(plan.required);
+  // 半日有給は 0.5日として数える（例：平日18.5日）。
+  // 休みが1種類なら日数も書き、2種類以上なら欄に収まるよう短く書く（日数は出勤日数の下に出ている）
+  const excluded = [
+    plan.leaveWorkdays && ['有給', `有給${plan.leaveWorkdays}日`],
+    plan.offWorkdays && ['全休', `全休${plan.offWorkdays}日`],
+    plan.halfWorkdays && ['半日', `半日${plan.halfWorkdays}回`],
+  ].filter(Boolean);
+  let excludedText = '';
+  if (excluded.length === 1) excludedText = `\n${excluded[0][1]}を除く`;
+  else if (excluded.length === 2) excludedText = `\n${excluded.map(e => e[0]).join('・')}を除く`;
+  else if (excluded.length === 3) excludedText = '\n休みの日を除く';
+  $('m-required-note').textContent = `平日${plan.workdays - plan.halfWorkdays / 2}日 × ${HOURS_PER_DAY}時間${excludedText}`;
+  // 残りの出勤日数（有給・全休の平日は数えない。今日はまだ退勤していなければ数える）
+  $('m-remain').textContent = `${plan.remainDays}日`;
+  $('m-remain-note').textContent = plan.todayRemains ? '今日をふくむ' : '';
+  if (plan.left <= 0) {
+    $('m-left').textContent = '達成';
+    $('m-left-note').textContent = plan.left < 0 ? `${fmtDur(-plan.left)} 多く働いています` : 'ちょうど達成しました';
+    $('m-perday').textContent = '0:00';
+    $('m-perday-note').textContent = 'もう達成しています';
+  } else if (!plan.remainDays) {
+    $('m-left').textContent = fmtDur(plan.left);
+    $('m-left-note').textContent = '残りの平日はありません';
+    $('m-perday').textContent = '—';
+    $('m-perday-note').textContent = '残りの平日がありません';
+  } else {
+    // あと1日あたり何時間働けばよいか（あと働く時間 ÷ 残りの平日。1分未満は切り上げ）
+    $('m-left').textContent = fmtDur(plan.left);
+    $('m-left-note').textContent = `残りの平日${plan.remainDays}日`;
+    $('m-perday').textContent = fmtDur(Math.ceil(plan.left / plan.remainDays));
+    $('m-perday-note').textContent = `${fmtDur(plan.left)} ÷ ${plan.remainDays}日`;
+  }
+}
+
+$('month-body').addEventListener('click', e => {
+  if (e.target.closest('select')) return; // プルダウンを押したときは記録の画面を開かない
+  const tr = e.target.closest('tr[data-key]');
+  if (tr) openEditor(tr.dataset.key);
+});
+$('month-body').addEventListener('keydown', e => {
+  if (e.target.closest('select')) return;
+  const tr = e.target.closest('tr[data-key]');
+  if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openEditor(tr.dataset.key); }
+});
+$('month-body').addEventListener('change', e => {
+  const select = e.target.closest('select.day-kind');
+  if (select) setDayKind(select.dataset.key, select.value);
+});
+
+// 日付の横のプルダウンで、その日を「－（なし）」「有給」「全休」「半日」に切り替える
+function setDayKind(key, kind) {
+  const r = data.records[key];
+  const work = r && r.start ? r : null;
+  const before = dayKind(r);
+  if ((kind === 'leave' || kind === 'off') && work &&
+      !confirm(`${fmtDate(key)} には勤務の記録があります。${REST_NAMES[kind]}にすると、出勤・退勤の時刻は消えます。よろしいですか？`)) {
+    renderMonth(); // プルダウンを元に戻す
+    return;
+  }
+  snapshot();
+  const memo = r ? r.memo : '';
+  if (kind === 'leave') {
+    data.records[key] = { leave: true, memo };
+  } else if (kind === 'off') {
+    data.records[key] = { dayOff: true, memo };
+  } else if (kind === 'half') {
+    data.records[key] = work ? { ...work, halfLeave: true } : { halfLeave: true, memo };
+  } else if (work) {
+    delete work.halfLeave; // 勤務の時刻は残して、半日有給だけやめる
+  } else {
+    delete data.records[key];
+  }
+  save();
+  renderAll();
+  toast(kind ? `${fmtDate(key)} を${REST_NAMES[kind]}にしました` : `${fmtDate(key)} の${REST_NAMES[before] || '休み'}をやめました`, true);
+}
+
+function shiftMonth(delta) {
+  const [y, m] = viewMonth.split('-').map(Number);
+  viewMonth = monthKey(new Date(y, m - 1 + delta, 1));
+  renderMonth();
+}
+$('prev-month').addEventListener('click', () => shiftMonth(-1));
+$('next-month').addEventListener('click', () => shiftMonth(1));
+$('this-month').addEventListener('click', () => { viewMonth = periodOf(new Date()); renderMonth(); });
+$('hide-weekend').addEventListener('change', e => {
+  data.hideWeekend = e.target.checked;
+  save();
+  renderMonth();
+});
+// 表示中の1か月に今日が入っていれば今日、入っていなければその月の最初の日
+function defaultDay() {
+  const today = dateKey(new Date());
+  const days = periodDays(viewMonth);
+  return days.includes(today) ? today : days[0];
+}
+$('add-record').addEventListener('click', () => openEditor(defaultDay()));
+$('add-leave').addEventListener('click', () => openEditor(defaultDay(), 'leave'));
+
+// ---------- 記録の編集 ----------
+const editor = $('editor');
+
+// kind に 'leave' を渡すと、有給として開く
+function openEditor(key, kind) {
+  const r = data.records[key];
+  const work = r && r.start ? r : null;
+  const halfOnly = !!(r && r.halfLeave && !r.start); // 時刻のない半日有給
+  editingKey = r ? key : null;
+  $('editor-title').textContent = r ? `${fmtDate(key)} の記録を直す` : kind === 'leave' ? '有給を入れる' : '記録を追加';
+  $('f-date').value = key;
+  $('f-start').value = work ? work.start : halfOnly ? '' : '09:00';
+  $('f-end').value = work ? (work.end || '') : halfOnly ? '' : '18:00';
+  $('f-break').value = work ? work.breakMin : halfOnly ? 0 : autoBreak();
+  $('f-half').checked = !!(r && r.halfLeave);
+  $('f-memo').value = r ? r.memo : '';
+  $('f-delete').hidden = !r;
+  $('f-error').textContent = '';
+  const selected = kind || (r && r.leave ? 'leave' : r && r.dayOff ? 'off' : 'work');
+  setKind(selected);
+  editor.showModal();
+  $(`f-kind-${selected}`).focus();
+}
+
+// 勤務・有給・全休の切り替え。有給・全休なら時刻の欄を隠す
+function setKind(kind) {
+  const rest = kind !== 'work';
+  $(`f-kind-${kind}`).checked = true;
+  $('f-work-fields').hidden = rest;
+  $('f-preview').hidden = rest;
+  $('f-leave-note').hidden = !rest;
+  $('f-leave-note').textContent = kind === 'off'
+    ? 'この日を全休（有給を使わない1日休み）として記録します。平日の全休は、その月に必要な時間から1日分（8時間）減ります。'
+    : 'この日を有給（1日休み）として記録します。平日の有給は、その月に必要な時間から1日分（8時間）減ります。';
+  $('f-error').textContent = '';
+  updatePreview();
+}
+['work', 'leave', 'off'].forEach(k => $(`f-kind-${k}`).addEventListener('change', () => setKind(k)));
+
+function readForm() {
+  return {
+    kind: $('f-kind-leave').checked ? 'leave' : $('f-kind-off').checked ? 'off' : 'work',
+    key: $('f-date').value,
+    start: $('f-start').value,
+    end: $('f-end').value || null,
+    brk: $('f-break').value === '' ? 0 : Number($('f-break').value),
+    half: $('f-half').checked,
+    memo: $('f-memo').value.trim(),
+  };
+}
+// 半日有給で、出勤・退勤の時刻がどちらも空（まだ出勤していない予定）
+const isHalfOnly = f => f.kind === 'work' && f.half && !f.start && !f.end;
+
+function validate(f) {
+  if (!f.key) return '日付を入れてください。';
+  if (f.kind !== 'work' || isHalfOnly(f)) return '';
+  if (!isTime(f.start)) return '出勤の時刻を入れてください。';
+  if (!Number.isInteger(f.brk) || f.brk < 0) return '休憩は 0 以上の整数（分）で入れてください。';
+  if (f.end && diffMin(f.start, f.end) - f.brk < 0) return '休憩が勤務時間より長くなっています。';
+  if (!f.end) {
+    const open = openKey();
+    if (open && open !== editingKey) return `${fmtDate(open)} がまだ勤務中です。先にそちらの退勤時刻を入れてください。`;
+  }
+  return '';
+}
+
+function updatePreview() {
+  const f = readForm();
+  const p = $('f-preview');
+  if (isHalfOnly(f)) { p.textContent = '時刻が空なので「半日有給」の予定として保存します'; return; }
+  if (!isTime(f.start)) { p.textContent = '出勤時刻を入れると実働時間を計算します'; return; }
+  if (!f.end) { p.textContent = '退勤が空なので「勤務中」として保存します'; return; }
+  const w = diffMin(f.start, f.end) - (Number.isFinite(f.brk) ? f.brk : 0);
+  const nextDay = toMin(f.end) < toMin(f.start) ? '（翌日退勤）' : '';
+  p.textContent = `実働 ${fmtDur(w)}${nextDay}`;
+}
+['f-start', 'f-end', 'f-break'].forEach(id => $(id).addEventListener('input', updatePreview));
+$('f-half').addEventListener('change', updatePreview);
+
+$('editor-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const f = readForm();
+  const err = validate(f);
+  if (err) { $('f-error').textContent = err; return; }
+  if (f.key !== editingKey && data.records[f.key] &&
+      !confirm(`${fmtDate(f.key)} にはすでに記録があります。上書きしますか？`)) return;
+
+  snapshot();
+  const prev = editingKey ? data.records[editingKey] : null;
+  if (editingKey && editingKey !== f.key) delete data.records[editingKey];
+  let rec;
+  if (f.kind === 'leave') rec = { leave: true, memo: f.memo };
+  else if (f.kind === 'off') rec = { dayOff: true, memo: f.memo };
+  else if (isHalfOnly(f)) rec = { halfLeave: true, memo: f.memo };
+  else {
+    rec = {
+      start: f.start,
+      end: f.end,
+      breakMin: f.brk,
+      breakStart: !f.end && prev && prev.start ? prev.breakStart : null,
+      memo: f.memo,
+    };
+    if (f.half) rec.halfLeave = true;
+  }
+  data.records[f.key] = rec;
+  save();
+  editor.close();
+  renderAll();
+  const restKind = f.kind !== 'work' ? f.kind : isHalfOnly(f) ? 'half' : '';
+  toast(restKind ? `${fmtDate(f.key)} を${REST_NAMES[restKind]}にしました` : `${fmtDate(f.key)} の記録を保存しました`, true);
+});
+
+$('f-delete').addEventListener('click', () => {
+  if (!editingKey || !confirm(`${fmtDate(editingKey)} の記録を削除しますか？`)) return;
+  snapshot();
+  delete data.records[editingKey];
+  save();
+  editor.close();
+  renderAll();
+  toast('記録を削除しました', true);
+});
+$('f-cancel').addEventListener('click', () => editor.close());
+
+$('forgot-fix').addEventListener('click', () => { const k = openKey(); if (k) openEditor(k); });
+
+// ---------- データの管理 ----------
+function renderData() {
+  $('auto-break-info').textContent = data.autoBreakMin === null
+    ? `出勤したときに自動で入れる休憩：${fmtBreak(AUTO_BREAK_MIN)}（ジョブカンのCSVを読み込むと、ジョブカンの休憩時間に合わせます）`
+    : `出勤したときに自動で入れる休憩：${fmtBreak(data.autoBreakMin)}（ジョブカンの記録に合わせています）`;
+  $('last-backup').textContent = data.lastBackup
+    ? `最後にバックアップを保存した日：${data.lastBackup.replace(/-/g, '/')}`
+    : 'まだバックアップを保存していません。';
+}
+
+// ---------- 書き出し・バックアップ ----------
+function download(text, name, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const csvCell = v => {
+  const s = String(v);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+function exportCsv(period) {
+  const days = period ? periodDays(period) : null;
+  const keys = Object.keys(data.records).sort().filter(k => !days || days.includes(k));
+  if (!keys.length) { toast('書き出す記録がありません'); return; }
+  const head = ['日付', '曜日', '祝日', '区分', '出勤', '退勤', '休憩(分)', '実働(時:分)', '実働(時間)', 'メモ'];
+  const lines = keys.map(k => {
+    const r = data.records[k];
+    const day = [k, WEEK[parseKey(k).getDay()], holidayName(k)];
+    if (r.leave || r.dayOff) return [...day, REST_NAMES[dayKind(r)], '', '', '', '', '', r.memo];
+    const kind = r.halfLeave ? '半日有給' : '勤務';
+    if (!r.start) return [...day, kind, '', '', '', '', '', r.memo];
+    const w = workedMin(r);
+    return [
+      ...day, kind, r.start, r.end || '勤務中', r.breakMin,
+      w === null ? '' : fmtDur(w),
+      w === null ? '' : (w / 60).toFixed(2),
+      r.memo,
+    ];
+  });
+  const csv = [head, ...lines].map(row => row.map(csvCell).join(',')).join('\r\n');
+  // 先頭の ﻿ は、Excel で開いたときに日本語が文字化けしないための印
+  download('﻿' + csv, `勤務記録_${days ? `${days[0]}〜${days[days.length - 1]}` : 'すべて'}.csv`, 'text/csv;charset=utf-8');
+  toast('CSVファイルを保存しました');
+}
+$('csv-month').addEventListener('click', () => exportCsv(viewMonth));
+$('csv-all').addEventListener('click', () => exportCsv(null));
+
+function backupSave() {
+  const today = dateKey(new Date());
+  data.lastBackup = today;
+  save();
+  download(JSON.stringify(data, null, 2), `勤務時間バックアップ_${today}.json`, 'application/json');
+  renderAll();
+  toast('バックアップを保存しました。ダウンロードフォルダーを確認してください');
+}
+$('backup-save').addEventListener('click', backupSave);
+$('backup-now').addEventListener('click', backupSave);
+
+$('backup-load').addEventListener('click', () => $('backup-file').click());
+$('backup-file').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  let restored;
+  try {
+    const parsed = JSON.parse(await file.text());
+    if (!parsed || typeof parsed.records !== 'object') throw new Error('形式が違います');
+    restored = normalize(parsed);
+  } catch (err) {
+    toast('このファイルは読み込めませんでした。勤務時間アプリのバックアップか確認してください');
+    return;
+  }
+  const n = Object.keys(restored.records).length;
+  if (!confirm(`バックアップの内容（記録 ${n} 件）で、今のデータを置き換えます。よろしいですか？`)) return;
+  data = restored;
+  save();
+  renderAll();
+  toast(`バックアップから ${n} 件を復元しました`);
+});
+
+// ---------- ジョブカンの CSV 読み込み ----------
+// ジョブカンの CSV は出力する列を会社ごとに変えられるので、列の名前から日付・出勤・退勤・休憩などを探す
+
+// 全角の数字や記号を半角にそろえ、空白を取り除く
+const normText = s => String(s).normalize('NFKC').replace(/\s/g, '');
+
+// 文字コードは UTF-8 か Shift_JIS（Excel 向けの日本語の CSV に多い）
+function decodeText(buf) {
+  const bytes = new Uint8Array(buf);
+  if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) return new TextDecoder('utf-8').decode(bytes.subarray(3));
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch (e) {
+    return new TextDecoder('shift_jis').decode(bytes);
+  }
+}
+
+// CSV を行と列に分ける（"" で囲まれた中のカンマや改行にも対応。タブ区切りでも読める）
+function parseCsv(text) {
+  const sample = text.slice(0, 2000);
+  const delim = (sample.match(/\t/g) || []).length > (sample.match(/,/g) || []).length ? '\t' : ',';
+  const rows = [];
+  let row = [], cell = '', quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c !== '"') cell += c;
+      else if (text[i + 1] === '"') { cell += '"'; i++; }
+      else quoted = false;
+    } else if (c === '"') quoted = true;
+    else if (c === delim) { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); rows.push(row); row = []; cell = '';
+    } else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows.map(r => r.map(s => s.trim()));
+}
+
+// 列の名前の手がかり（inc に合い、exc に合わない最初の列を使う）
+const JOBCAN_COLUMNS = {
+  date: { inc: /日付|年月日|勤務日|出勤日|^日$/, exc: /曜|数/ },
+  start: { inc: /出勤|始業|出社/, exc: /日数|日$|回数|予定|シフト|場所|区分|簿|状況/ },
+  end: { inc: /退勤|終業|退社/, exc: /日数|日$|回数|予定|シフト|場所|区分|状況/ },
+  brk: { inc: /休憩/, exc: /開始|終了|入|戻|回数|予定|シフト/ },
+  brkStart: { inc: /休憩(開始|入)/ },
+  brkEnd: { inc: /休憩(終了|戻)/ },
+  worked: { inc: /労働時間|実働|勤務時間/, exc: /残業|深夜|休日|所定|法定|予定|外|日数/ },
+  memo: { inc: /メモ|備考|コメント/ },
+  name: { inc: /氏名|名前|スタッフ名|従業員名|社員名/ },
+};
+function findColumns(header) {
+  const names = header.map(normText);
+  const cols = {};
+  for (const [k, { inc, exc }] of Object.entries(JOBCAN_COLUMNS)) {
+    const i = names.findIndex(s => inc.test(s) && !(exc && exc.test(s)));
+    if (i >= 0) cols[k] = i;
+  }
+  return cols;
+}
+
+// 「2026/10/01」「2026年10月1日」「10/01(水)」などを 'YYYY-MM-DD' に。年がなければ今年（1か月以上先になるなら去年）
+function parseDateCell(s, today) {
+  const t = normText(s);
+  let y, mo, d;
+  let m = t.match(/(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})/);
+  if (m) {
+    [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  } else {
+    m = t.match(/(\d{1,2})[\/月](\d{1,2})/);
+    if (!m) return null;
+    [y, mo, d] = [today.getFullYear(), Number(m[1]), Number(m[2])];
+    if (new Date(y, mo - 1, d) - today > 31 * 86400000) y--;
+  }
+  const date = new Date(y, mo - 1, d);
+  return date.getMonth() === mo - 1 && date.getDate() === d ? dateKey(date) : null;
+}
+
+// 「9:00」「09:00:00」「翌01:30」「25:30」「9時00分」などを 'HH:MM' に（24時以降は翌日の時刻として扱う）
+function parseTimeCell(s) {
+  const m = normText(s).match(/(\d{1,2})[:時](\d{2})/);
+  if (!m || Number(m[2]) > 59) return null;
+  return `${pad(Number(m[1]) % 24)}:${m[2]}`;
+}
+
+// 「1:00」「1時間30分」「90分」「1.5」「60」などを分に。単位のない整数は maxHours 以下なら時間、それより大きければ分とみなす
+function parseDurationCell(s, header, maxHours) {
+  const t = normText(s);
+  let m = t.match(/^(\d+):(\d{2})/);
+  if (m) return Number(m[1]) * 60 + Number(m[2]);
+  m = t.match(/^(\d+)時間(?:(\d+)分)?$/);
+  if (m) return Number(m[1]) * 60 + Number(m[2] || 0);
+  m = t.match(/^(\d+)分$/);
+  if (m) return Number(m[1]);
+  if (/^\d+\.\d+$/.test(t)) return Math.round(Number(t) * 60);
+  if (/^\d+$/.test(t)) {
+    const n = Number(t);
+    return /分/.test(normText(header)) || n > maxHours ? n : n * 60;
+  }
+  return null;
+}
+
+// CSV の文字から、取り込む記録の一覧を作る
+function readJobcan(text, today) {
+  const rows = parseCsv(text);
+  let headerAt = -1, cols = null;
+  // 表の前に「スタッフ名」「対象期間」などの行があってもよいように、列の名前の行を探す
+  for (let i = 0; i < Math.min(rows.length, 30); i++) {
+    const c = findColumns(rows[i]);
+    if ('date' in c && 'start' in c && 'end' in c) { headerAt = i; cols = c; break; }
+  }
+  if (headerAt < 0) return { error: 'columns', header: rows.find(r => r.some(Boolean)) || [] };
+
+  const header = rows[headerAt];
+  const cell = (row, k) => (k in cols ? row[cols[k]] || '' : '');
+  const byKey = {};
+  let skipped = 0;
+  for (const row of rows.slice(headerAt + 1)) {
+    if (!row.some(Boolean)) continue;
+    const key = parseDateCell(cell(row, 'date'), today);
+    const start = parseTimeCell(cell(row, 'start'));
+    const end = parseTimeCell(cell(row, 'end'));
+    const name = cell(row, 'name');
+    const memo = cell(row, 'memo');
+    const id = `${name}|${key}`;
+    const text = row.map(normText).join(' ');
+    // 「半休」「半日」「午前休」「午後休」と書いてある日は半日有給（「半日有給」も有給ではなく半日として扱う）
+    const half = /半休|半日|午前休|午後休/.test(text);
+    // 時刻がなくても「半休」「有給」「全休」などと書いてある日は、半日有給・有給・全休として読み込む
+    // （「有給（全休）」のように両方あれば有給。「欠勤」も有給ではない1日休みなので全休にする）
+    if (key && !start && !end) {
+      const rest = half ? { halfLeave: true } : /有給|有休|年休/.test(text) ? { leave: true }
+        : /全休|欠勤/.test(text) ? { dayOff: true } : null;
+      if (rest) {
+        if (!byKey[id]) byKey[id] = { key, name, ...rest, memo };
+        continue;
+      }
+    }
+    // 休みの日や、まだ退勤していない日は読み込まない
+    if (!key || !start || !end) { skipped++; continue; }
+    // 休憩は「休憩の列」→「休憩開始・終了の列」→「労働時間の列から計算」の順に探す。
+    // 休憩の列はあるのに空なら休憩なし、休憩も労働時間も分からなければ出勤したときと同じ自動の休憩
+    const total = diffMin(start, end);
+    let brk = 'brk' in cols ? parseDurationCell(cell(row, 'brk'), header[cols.brk], 8) : null;
+    if (brk === null && 'brkStart' in cols && 'brkEnd' in cols) {
+      const bs = parseTimeCell(cell(row, 'brkStart'));
+      const be = parseTimeCell(cell(row, 'brkEnd'));
+      if (bs && be) brk = diffMin(bs, be);
+    }
+    if (brk === null && 'worked' in cols) {
+      const w = parseDurationCell(cell(row, 'worked'), header[cols.worked], 24);
+      if (w !== null && w <= total) brk = total - w;
+    }
+    // ジョブカンの記録から休憩が分かったか（分からず自動の休憩にした日は、出勤したときの休憩の参考にしない）
+    const brkFromJobcan = brk !== null || 'brk' in cols || 'brkStart' in cols;
+    if (brk === null) brk = brkFromJobcan ? 0 : autoBreak();
+    brk = Math.min(brk, total);
+
+    const prev = byKey[id];
+    if (prev && prev.start) {
+      // 同じ日が2行ある（1日に2回勤務した）ときは、最初の出勤〜最後の退勤の1件にまとめる
+      const worked = diffMin(prev.start, prev.end) - prev.breakMin + total - brk;
+      prev.end = end;
+      prev.breakMin = Math.max(0, diffMin(prev.start, end) - worked);
+      if (memo) prev.memo = prev.memo ? `${prev.memo} / ${memo}` : memo;
+      if (half) prev.halfLeave = true;
+      continue;
+    }
+    // 同じ日に有給の行と勤務の行があるときは、勤務のほうを使う（半休の行があれば半日有給の勤務にする）
+    byKey[id] = { key, name, start, end, breakMin: brk, memo, brkFromJobcan };
+    if (half || (prev && prev.halfLeave)) byKey[id].halfLeave = true;
+  }
+
+  let brkFrom = `（列がないので${fmtBreak(autoBreak())}）`;
+  if ('brk' in cols) brkFrom = `「${header[cols.brk]}」`;
+  else if ('brkStart' in cols && 'brkEnd' in cols) brkFrom = `「${header[cols.brkStart]}」と「${header[cols.brkEnd]}」から計算`;
+  else if ('worked' in cols) brkFrom = `「${header[cols.worked]}」から計算`;
+  const colsText = `読み取った列：日付「${header[cols.date]}」・出勤「${header[cols.start]}」・退勤「${header[cols.end]}」・休憩${brkFrom}` +
+    ('memo' in cols ? `・メモ「${header[cols.memo]}」` : '');
+
+  const items = Object.values(byKey).sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  return { items, skipped, colsText };
+}
+
+// ジョブカンでいちばん多い休憩時間（同じ回数なら新しい日のほう）。分からなければ null
+function usualBreak(items) {
+  const count = {};
+  let best = null;
+  for (const it of items) {
+    if (!it.brkFromJobcan || it.halfLeave) continue; // 半日有給の日の休憩は参考にしない
+    count[it.breakMin] = (count[it.breakMin] || 0) + 1;
+    if (best === null || count[it.breakMin] >= count[best]) best = it.breakMin;
+  }
+  return best;
+}
+
+let importResult = null;
+
+// 確認ダイアログを開く（ファイルを読んだあとに呼ぶ）
+function openImport(result, fileName) {
+  importResult = result;
+  $('imp-file').textContent = `ファイル：${fileName}`;
+  const names = [...new Set((result.items || []).map(it => it.name).filter(Boolean))];
+  $('imp-name-field').hidden = names.length < 2;
+  $('imp-name').innerHTML = names.map(n => `<option>${esc(n)}</option>`).join('');
+  $('imp-overwrite').checked = true;
+  renderImport();
+  $('importer').showModal();
+}
+
+function importItems() {
+  const items = importResult.items || [];
+  return $('imp-name-field').hidden ? items : items.filter(it => it.name === $('imp-name').value);
+}
+
+function renderImport() {
+  const r = importResult;
+  $('imp-error').textContent = '';
+  if (r.error) {
+    $('imp-summary').textContent = 'このファイルからは、日付・出勤・退勤の列が見つかりませんでした。ジョブカンの出勤簿（日ごとの出勤・退勤の時刻が並んだCSV）か確認してください。';
+    $('imp-cols').textContent = r.header.length ? `ファイルの列：${r.header.join('、')}` : '';
+    $('imp-table').hidden = true;
+    $('imp-overwrite-field').hidden = true;
+    $('imp-ok').hidden = true;
+    return;
+  }
+  const items = importItems();
+  const overlap = items.filter(it => data.records[it.key]).length;
+  const overwrite = $('imp-overwrite').checked;
+  const count = overwrite ? items.length : items.length - overlap;
+  $('imp-cols').textContent = r.colsText;
+  $('imp-table').hidden = !items.length;
+  $('imp-overwrite-field').hidden = !overlap;
+  $('imp-ok').hidden = !items.length;
+  $('imp-ok').disabled = !count;
+  if (!items.length) {
+    $('imp-summary').textContent = '読み込める記録がありませんでした（出勤と退勤の時刻が両方入っている日がありません）。';
+    return;
+  }
+  const first = items[0].key.replace(/-/g, '/');
+  const last = items[items.length - 1].key.replace(/-/g, '/');
+  const usual = usualBreak(items);
+  let breakText = '';
+  if (usual !== null) {
+    breakText = usual === autoBreak()
+      ? `\n出勤したときの休憩：${fmtBreak(usual)}（ジョブカンでいちばん多い休憩時間と同じ）`
+      : `\n出勤したときの休憩：${fmtBreak(autoBreak())} → ${fmtBreak(usual)} にします（ジョブカンでいちばん多い休憩時間）`;
+  }
+  $('imp-summary').textContent =
+    `読み込む記録：${count}件（${first}〜${last}）` +
+    (items.some(it => dayKind(it))
+      ? `\nうち${['leave', 'off', 'half']
+        .map(k => [k, items.filter(it => dayKind(it) === k).length])
+        .filter(([, n]) => n)
+        .map(([k, n]) => `${REST_NAMES[k]}：${n}日`)
+        .join('・')}` : '') +
+    (overlap ? `\nすでにアプリに記録がある日：${overlap}件（黄色の行）${overwrite ? '→ 上書きします' : '→ 今の記録を残します'}` : '') +
+    (r.skipped ? `\n読み込まない行：${r.skipped}件（休みの日など、出勤・退勤の時刻がない行）` : '') +
+    breakText;
+  $('imp-body').innerHTML = items.map(it => {
+    const cells = it.leave ? '<td colspan="4" class="leave-cell"><span class="leave-tag">有給</span></td>'
+      : it.dayOff ? '<td colspan="4" class="leave-cell"><span class="leave-tag off">全休</span></td>'
+      : !it.start ? '<td colspan="4" class="leave-cell"><span class="leave-tag">半日有給</span></td>'
+      : `<td>${it.start}</td><td>${it.end}</td><td>${fmtDur(it.breakMin)}</td><td>${fmtDur(diffMin(it.start, it.end) - it.breakMin)}</td>`;
+    const halfMark = it.halfLeave && it.start ? ' <span class="leave-tag">半日</span>' : '';
+    return `<tr class="${data.records[it.key] ? 'overlap' : ''}"><td>${fmtDate(it.key)}${halfMark}</td>${cells}</tr>`;
+  }).join('');
+}
+
+$('jobcan-load').addEventListener('click', () => $('jobcan-file').click());
+$('jobcan-file').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  openImport(readJobcan(decodeText(await file.arrayBuffer()), new Date()), file.name);
+});
+$('imp-name').addEventListener('change', renderImport);
+$('imp-overwrite').addEventListener('change', renderImport);
+$('imp-cancel').addEventListener('click', () => $('importer').close());
+
+$('importer-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const overwrite = $('imp-overwrite').checked;
+  const targets = importItems().filter(it => overwrite || !data.records[it.key]);
+  if (!targets.length) { $('imp-error').textContent = '読み込む記録がありません。'; return; }
+  snapshot();
+  // 出勤したときに自動で入れる休憩を、ジョブカンでいちばん多い休憩時間に合わせる
+  const before = autoBreak();
+  const usual = usualBreak(importItems());
+  if (usual !== null) data.autoBreakMin = usual;
+  for (const it of targets) {
+    const prev = data.records[it.key];
+    const memo = it.memo || (prev ? prev.memo : '');
+    if (it.leave) data.records[it.key] = { leave: true, memo };
+    else if (it.dayOff) data.records[it.key] = { dayOff: true, memo };
+    else if (!it.start) data.records[it.key] = { halfLeave: true, memo };
+    else {
+      data.records[it.key] = { start: it.start, end: it.end, breakMin: it.breakMin, breakStart: null, memo };
+      if (it.halfLeave) data.records[it.key].halfLeave = true;
+    }
+  }
+  save();
+  $('importer').close();
+  // 読み込んだ最後の日が入っている1か月を表示する
+  viewMonth = periodOf(parseKey(targets[targets.length - 1].key));
+  renderAll();
+  toast(`ジョブカンから ${targets.length} 件を読み込みました` +
+    (autoBreak() !== before ? `（出勤したときの休憩を${fmtBreak(autoBreak())}にしました）` : ''), true);
+});
+
+$('clear-all').addEventListener('click', () => {
+  if (!Object.keys(data.records).length) { toast('削除する記録がありません'); return; }
+  if (!confirm('すべての勤務記録を削除します。よろしいですか？')) return;
+  if (!confirm('本当に削除しますか？ 元に戻すにはバックアップが必要です。')) return;
+  data.records = {};
+  save();
+  renderAll();
+  toast('すべての勤務記録を削除しました');
+});
+
+function renderAll() {
+  renderPunch();
+  renderMonth();
+  renderData();
+}
+
+// 同じアプリを別のブラウザータブでも開いていて、そちらで変更されたら、こちらにも反映する
+window.addEventListener('storage', e => {
+  if (e.key === STORAGE_KEY) { data = load(); renderAll(); }
+});
+
+renderAll();
+setInterval(() => {
+  const today = dateKey(new Date());
+  if (today !== lastRenderedDay) { lastRenderedDay = today; renderAll(); }
+  else renderClock();
+}, 1000);
+</script>
+</body>
+</html>
